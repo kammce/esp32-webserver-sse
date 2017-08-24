@@ -1,0 +1,47 @@
+SERVER SENT EVENT REQUEST HTTP REQUEST
+========================
+GET / HTTP/1.1
+Host: 192.168.0.109
+Connection: keep-alive
+Accept: text/event-stream
+Cache-Control: no-cache
+Origin: null
+User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/59.0.3071.115 Safari/537.36
+Accept-Encoding: gzip, deflate
+Accept-Language: en-US,en;q=0.8
+
+
+GET REQUEST with data no cache
+=========================
+GET /?new=no-longer-special&_=1502888918304 HTTP/1.1
+Host: 192.168.0.109
+Connection: keep-alive
+Accept: */*
+Origin: null
+User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/59.0.3071.115 Safari/537.36
+Accept-Encoding: gzip, deflate
+Accept-Language: en-US,en;q=0.8
+
+
+GET REQUEST with nested json data no cache
+=============================================
+buffer = GET /?data%5Bnew%5D=no-longer-special&_=1502889027042 HTTP/1.1
+Host: 192.168.0.109
+Connection: keep-alive
+Accept: */*
+Origin: null
+User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/59.0.3071.115 Safari/537.36
+Accept-Encoding: gzip, deflate
+Accept-Language: en-US,en;q=0.8
+
+
+GET REQUEST with nested json data
+=============================================
+GET /?data%5Bnew%5D=no-longer-special HTTP/1.1
+Host: 192.168.0.109
+Connection: keep-alive
+Accept: */*
+Origin: null
+User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/59.0.3071.115 Safari/537.36
+Accept-Encoding: gzip, deflate
+Accept-Language: en-US,en;q=0.8

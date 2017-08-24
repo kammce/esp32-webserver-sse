@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>ESP32 SSE Example</title>
+	<style type='text/css'>
+		html, body { height: 100%; background: #f9f9f9; }
+		body { font-family: 'Courier New', Courier, monospace; }
+		#container
+		{
+			position: fixed;
+			top: 50%;
+			left: 50%;
+			transform: translate(-50%, -50%);
+			width: 80%;
+			height: 80%;
+			background: white;
+			border-radius: 10px;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			flex-direction: column;
+			min-height: 600px;
+		}
+		#container div
+		{
+			text-align: center;
+			width: 100%;
+		}
+		#container div button
+		{
+			text-align: center;
+			width: calc(100% / 3.2);
+			border-radius: 5px;
+		    border: 1px solid #ccc;
+		    background: white;
+			height: 50%;
+		}
+		#container div button:hover
+		{
+			background: #ccc;
+			cursor: pointer;
+		}
+		#container div input
+		{
+		    border-radius: 5px;
+		    height: 50%;
+		    border: 1px solid #ccc;
+		}
+		#container div p { color: red; }
+		#server-data
+		{
+			height: 92.5%;
+			width:90%;
+			border-radius: 5px;
+		    border: 1px solid #ccc;
+		}
+	</style>
+</head>
+<body>
+	<div id='container'>
+
+		<div style='height: 5%; margin-top: 2.5%;'>
+			<h2>XMLHttpRequest &amp; Server Sent Events</h2>
+		</div>
+		<div style='height: 7.5%;margin-top: 2.5%;'>
+			<button onclick='sendData()'>AJAX Send</button>
+			<button onclick='recieveData()'>Start Server Side Events</button>
+			<button onclick='toggleInterval()'>Toggle Interval</button>
+			<input name='client-data' id='client-data' type='text' style='width:90%' />
+		</div>
+		<div style='height: 3.5%;'> <p id='response'> response </p> </div>
+		<div style='height: 90%; margin-top: 2.5%;'>
+			<textarea id='server-data' ></textarea>
+		</div>
+	</div>
+</body>
+<script type='text/javascript'>
+    var source_sta, source_ap;
+    // const URL = 'http://192.168.4.1';
+    const URL = 'http://192.168.0.104';
+    var response = document.querySelector('#response');
+    var busy_counter = 0;
+
+    function recieveData()
+    {
+    	if(source_ap != null)
+    	{
+    		response.innerHTML = 'Resetting Event Source';
+    		source_ap.close();
+    		source_ap = null;
+    	}
+    	response.innerHTML = 'Connecting...';
+		source_ap = new EventSource(URL);
+		source_ap.onopen = function()
+		{
+			response.innerHTML = 'Connected';
+		}
+		source_ap.onmessage = function(event)
+		{
+		    console.log(event);
+		    var text_area = document.querySelector('#server-data');
+		    text_area.innerHTML = `id = ${event.lastEventId} :: data = ${event.data}\n` + text_area.innerHTML;
+		};
+		source_ap.onerror = function(event)
+		{
+			response.innerHTML = `failed to connect to ${URL}`;
+		};
+    }
+    function sendData()
+    {
+    	var oReq = new XMLHttpRequest();
+    	var value = document.querySelector('#client-data').value.replace(/ /g, '_');
+		oReq.open('GET', `${URL}?data=${value}`);
+		oReq.send();
+    }
+    var counter = 0;
+    var interval;
+    function toggleInterval()
+    {
+    	console.log(interval);
+    	if(interval)
+    	{
+    		clearInterval(interval);
+		    interval = null;
+    	}
+    	else
+    	{
+		    interval = setInterval(() =>
+		    {
+		    	var oReq = new XMLHttpRequest();
+		    	var value = `testing_${counter++}`;
+		    	console.log(value);
+				oReq.open('GET', `${URL}?data=${value}`);
+				oReq.send();
+		    }, 75);
+    	}
+    }
+</script>
+</html>
