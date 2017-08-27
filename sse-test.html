@@ -76,8 +76,8 @@
 </body>
 <script type='text/javascript'>
     var source_sta, source_ap;
-    // const URL = 'http://192.168.4.1';
-    const URL = 'http://192.168.0.104';
+    const URL = 'http://192.168.4.1';
+    // const URL = 'http://192.168.0.104';
     var response = document.querySelector('#response');
     var busy_counter = 0;
 
@@ -132,7 +132,7 @@
 		    	console.log(value);
 				oReq.open('GET', `${URL}?data=${value}`);
 				oReq.send();
-		    }, 75);
+		    }, 150);
     	}
     }
 </script>
