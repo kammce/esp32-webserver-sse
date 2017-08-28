@@ -25,7 +25,6 @@
 #include "lwip/priv/api_msg.h"
 #include "lwip/err.h"
 
-#include "http_parser.h"
 //===============================
 // MACRO Constants
 //===============================
@@ -202,31 +201,13 @@ const static char http_sse_html[]  = "<!DOCTYPE html>\n"
                                      "</script>\n"
                                      "</html>\n";
 
-const static char success[] = "success";
-const static char failure[] = "failure";
+const static char success[]         = "success";
+const static char failure[]         = "failure";
+const static char notfound_404[]    = "404 not found!";
 const static char reply_once[] = "id: 1\ndata: testing!\n\n\r\n";
 //===============================
 // Structures and Enumerations
 //===============================
-enum HTTP_FIELDS
-{
-    DONT_CARE = -1,
-    ACCEPT = 0,
-    /* add more later */
-};
-
-typedef struct
-{
-    const char * str;
-    uint32_t length;
-} c_string;
-
-typedef struct
-{
-    c_string url;
-    c_string fields[1];
-    int32_t field_pointer;
-} http_structure;
 //===============================
 // Global Variables
 //===============================
@@ -239,9 +220,6 @@ const int CONNECTED_BIT = BIT0;
 struct netconn * clients[MAX_CONNECTIONS] = { NULL };
 char special_string[SPECIAL_STRING_LENGTH] = "special";
 uint32_t sse_connections = 0;
-//// HTTP Parsing Structures
-http_structure captured_http = { 0 };
-http_parser_settings settings;
 //===============================
 // Function Fields
 //===============================
@@ -313,89 +291,6 @@ static void initialise_wifi(void)
     ESP_ERROR_CHECK( esp_wifi_connect() );
 }
 
-int on_message_begin(http_parser* _)
-{
-    (void)_;
-    ESP_LOGV(TAG, "\n***MESSAGE BEGIN***\n\n");
-    return 0;
-}
-
-int on_headers_complete(http_parser* _)
-{
-    (void)_;
-    ESP_LOGV(TAG, "\n***HEADERS COMPLETE***\n\n");
-    return 0;
-}
-
-int on_message_complete(http_parser* _)
-{
-    (void)_;
-    ESP_LOGV(TAG, "\n***MESSAGE COMPLETE***\n\n");
-    return 0;
-}
-
-int on_url(http_parser* _, const char* at, size_t length)
-{
-    (void)_;
-    ESP_LOGV(TAG, "Url: %.*s\n", (int)length, at);
-    captured_http.url.str = at;
-    captured_http.url.length = length;
-    return 0;
-}
-
-int on_header_field(http_parser* _, const char* at, size_t length)
-{
-    (void)_;
-    ESP_LOGV(TAG, "Header field: %.*s\n", (int)length, at);
-    if (strncmp("Accept", at, length) == 0)
-    {
-        ESP_LOGV(TAG, "======== !ACCEPT FOUND! ========\n");
-        captured_http.field_pointer = ACCEPT;
-    }
-    else
-    {
-        captured_http.field_pointer = DONT_CARE;
-    }
-    return 0;
-}
-
-int on_header_value(http_parser* _, const char* at, size_t length)
-{
-    (void)_;
-    ESP_LOGV(TAG, "Header value: %.*s\n", (int)length, at);
-    if (captured_http.field_pointer != DONT_CARE)
-    {
-        captured_http.fields[captured_http.field_pointer].str = at;
-        captured_http.fields[captured_http.field_pointer].length = length;
-    }
-    return 0;
-}
-
-int on_body(http_parser* _, const char* at, size_t length)
-{
-    (void)_;
-    ESP_LOGV(TAG, "Body: %.*s\n", (int)length, at);
-    return 0;
-}
-
-bool c_string_cmp(c_string str1, const char * str2)
-{
-    return (strncmp(str1.str, str2, str1.length) == 0);
-}
-
-bool c_string_contains(c_string str1, const char * str2)
-{
-    return (strstr(str1.str, str2) != NULL);
-}
-
-void reset_captured_http()
-{
-    captured_http.url.str = NULL;
-    captured_http.url.length = 0;
-    captured_http.fields[ACCEPT].str = NULL;
-    captured_http.fields[ACCEPT].length = 0;
-}
-
 bool extract_url_variable(const char * variable,
                           const char * url,
                           uint32_t url_length,
@@ -403,9 +298,7 @@ bool extract_url_variable(const char * variable,
                           uint32_t dest_length)
 {
     bool success = false;
-
     char template[EXTRACT_URL_TEMPLATE_SIZE] = { 0 };
-
     char * variable_found = strstr(url, variable);
     if (variable_found != NULL)
     {
@@ -444,10 +337,11 @@ static void http_server_netconn_serve(void *pvParameters)
     struct netconn *conn = (struct netconn *)pvParameters;
     struct netbuf *inbuf;
     char *buf;
-    u16_t buflen;
-    err_t err;
+    uint16_t buflen;
     bool close_flag = true;
-    http_parser parser;
+    char url[256] = { 0 };
+    char * is_event_stream = NULL;
+    err_t err;
 
     /* Read the data from the port, blocking if nothing yet there.
      We assume the request (the part we care about) is in one netbuf */
@@ -456,25 +350,16 @@ static void http_server_netconn_serve(void *pvParameters)
     if (err == ERR_OK)
     {
         netbuf_data(inbuf, (void**)&buf, &buflen);
-        http_parser_init(&parser, HTTP_REQUEST);
-
-        //// Parse http request
-        size_t nparsed = http_parser_execute(&parser, &settings, buf, buflen);
+        //// NULL Terminate end of buffer
+        buf[buflen] = '\0';
+        //// Attempt to find "Accept: text/event-stream" string within request
+        //// Adding the first and last "\r\n" means that this is not the first or last line
+        is_event_stream = strstr(buf, "\r\nAccept: text/event-stream\r\n");
         //// Output captured http request information
-        ESP_LOGV(TAG, "url = %.*s\n", captured_http.url.length, captured_http.url.str);
-        ESP_LOGV(TAG, "fields[ACCEPT] = %.*s\n", captured_http.fields[ACCEPT].length, captured_http.fields[ACCEPT].str);
-        if (nparsed != (size_t)buflen)
-        {
-            fprintf(stderr,
-                    "Error: %s (%s)\n",
-                    http_errno_description(HTTP_PARSER_ERRNO(&parser)),
-                    http_errno_name(HTTP_PARSER_ERRNO(&parser)));
-        }
-        else if(parser.http_errno != OK)
-        {
-            printf("HTTP Parser error %d\n", parser.http_errno);
-        }
-        else if(c_string_cmp(captured_http.fields[ACCEPT], "text/event-stream"))
+        // printf("buf = %.*s\n", buflen, buf);
+        // printf("ACCEPT = 0x%X\n", is_event_stream);
+
+        if(is_event_stream != NULL)
         {
             if (add_sse_client(conn))
             {
@@ -484,15 +369,17 @@ static void http_server_netconn_serve(void *pvParameters)
         }
         else
         {
+            sscanf(buf, "GET %255s HTTP/1.1\n", url);
+            // printf("url = %s\n", url);
             //// Beyond this point, I am only sending html data back!
             netconn_write(conn, http_html_hdr, sizeof(http_html_hdr) - 1, NETCONN_NOCOPY);
             //// More cases
-            if (c_string_contains(captured_http.url, "/?"))
+            if (strstr(url, "/?") != NULL)
             {
                 bool success_flag = extract_url_variable(
                     "data",
-                    captured_http.url.str,
-                    captured_http.url.length,
+                    url,
+                    strlen(url),
                     special_string,
                     SPECIAL_STRING_LENGTH
                 );
@@ -506,21 +393,23 @@ static void http_server_netconn_serve(void *pvParameters)
                     netconn_write(conn, failure, sizeof(failure) - 1, NETCONN_NOCOPY);
                 }
             }
-            else if (c_string_cmp(captured_http.url, "/"))
-            {
-                netconn_write(conn, http_index_html, sizeof(http_index_html) - 1, NETCONN_NOCOPY);
-            }
-            else if (c_string_cmp(captured_http.url, "/sse"))
+            else if (strstr(url, "/sse") != NULL)
             {
                 netconn_write(conn, http_sse_html, sizeof(http_sse_html) - 1, NETCONN_NOCOPY);
             }
+            else if (strstr(url, "/") != NULL || strstr(url, "/index") != NULL)
+            {
+                netconn_write(conn, http_index_html, sizeof(http_index_html) - 1, NETCONN_NOCOPY);
+            }
+            else
+            {
+                netconn_write(conn, notfound_404, sizeof(notfound_404) - 1, NETCONN_NOCOPY);
+            }
         }
-
-        reset_captured_http();
     }
     else
     {
-        ESP_LOGV(TAG, "err = %d \n", err);
+        printf("err = %d \n", err);
     }
 
     netbuf_delete(inbuf);
@@ -565,7 +454,7 @@ static void handle_sse()
     while (true)
     {
         printf("ram=%d\n",esp_get_free_heap_size());
-        sprintf(sse_buffer, "id: %08X\ndata: (0) :: %s\n\n\r\n", sse_id, special_string);
+        sprintf(sse_buffer, "id: %08X\ndata: (_) :: %s\n\n\r\n", sse_id, special_string);
 
         for (int i = 0; i < MAX_CONNECTIONS; ++i)
         {
@@ -617,15 +506,6 @@ int app_main(void)
 {
     //// Initialize memory
     nvs_flash_init();
-    //// Clear http settings structure
-    memset(&settings, 0, sizeof(settings));
-    settings.on_message_begin = on_message_begin;
-    settings.on_url = on_url;
-    settings.on_header_field = on_header_field;
-    settings.on_header_value = on_header_value;
-    settings.on_headers_complete = on_headers_complete;
-    settings.on_body = on_body;
-    settings.on_message_complete = on_message_complete;
 
     initialise_wifi();
     gpio_pad_select_gpio(LED_BUILTIN);
