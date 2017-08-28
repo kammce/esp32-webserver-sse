@@ -2,6 +2,7 @@
 <html>
 <head>
 	<title>ESP32 SSE Example</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<style type='text/css'>
 		html, body { height: 100%; background: #f9f9f9; }
 		body { font-family: 'Courier New', Courier, monospace; }
@@ -59,11 +60,7 @@
 </head>
 <body>
 	<div id='container'>
-
-		<div style='height: 5%; margin-top: 2.5%;'>
-			<h2>XMLHttpRequest &amp; Server Sent Events</h2>
-		</div>
-		<div style='height: 7.5%;margin-top: 2.5%;'>
+		<div style='height: 7.5%; margin-top: 2.5%;'>
 			<button onclick='sendData()'>AJAX Send</button>
 			<button onclick='recieveData(this)'>Start Server Side Events</button>
 			<button onclick='toggleInterval(this)'>Toggle Interval</button>
@@ -77,8 +74,8 @@
 </body>
 <script type='text/javascript'>
     var source_sta, source_ap;
-    // const URL = 'http://192.168.4.1';
-    const URL = 'http://192.168.0.104';
+    const URL = 'http://192.168.4.1';
+    // const URL = 'http://192.168.0.104';
     var response = document.querySelector('#response');
     var busy_counter = 0;
 
