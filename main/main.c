@@ -242,7 +242,6 @@ uint32_t sse_connections = 0;
 //// HTTP Parsing Structures
 http_structure captured_http = { 0 };
 http_parser_settings settings;
-http_parser parser;
 //===============================
 // Function Fields
 //===============================
@@ -448,6 +447,7 @@ static void http_server_netconn_serve(void *pvParameters)
     u16_t buflen;
     err_t err;
     bool close_flag = true;
+    http_parser parser;
 
     /* Read the data from the port, blocking if nothing yet there.
      We assume the request (the part we care about) is in one netbuf */
@@ -456,6 +456,7 @@ static void http_server_netconn_serve(void *pvParameters)
     if (err == ERR_OK)
     {
         netbuf_data(inbuf, (void**)&buf, &buflen);
+        http_parser_init(&parser, HTTP_REQUEST);
 
         //// Parse http request
         size_t nparsed = http_parser_execute(&parser, &settings, buf, buflen);
@@ -471,7 +472,7 @@ static void http_server_netconn_serve(void *pvParameters)
         }
         else if(parser.http_errno != OK)
         {
-
+            printf("HTTP Parser error %d\n", parser.http_errno);
         }
         else if(c_string_cmp(captured_http.fields[ACCEPT], "text/event-stream"))
         {
@@ -543,6 +544,20 @@ static void http_server_netconn_serve(void *pvParameters)
     vTaskDelete(NULL);
 }
 
+inline char int_to_ascii_hex(uint32_t n)
+{
+    char c = '0';
+    if(n < 10)
+    {
+        c = '0'+n;
+    }
+    else
+    {
+        c = 'A'+(n-10);
+    }
+    return c;
+}
+
 static void handle_sse()
 {
     char sse_buffer[128] = { 0 };
@@ -550,12 +565,14 @@ static void handle_sse()
     while (true)
     {
         printf("ram=%d\n",esp_get_free_heap_size());
+        sprintf(sse_buffer, "id: %08X\ndata: (0) :: %s\n\n\r\n", sse_id, special_string);
+
         for (int i = 0; i < MAX_CONNECTIONS; ++i)
         {
             if (clients[i] != NULL)
             {
-                sprintf(sse_buffer, "id: %08X\ndata: (%X) :: %s\n\n\r\n", sse_id, i, special_string);
-                err_t error = netconn_write(clients[i], sse_buffer, strlen(sse_buffer) - 1, NETCONN_NOCOPY);
+                sse_buffer[20] = int_to_ascii_hex(i);
+                err_t error = netconn_write(clients[i], sse_buffer, strlen(sse_buffer) - 1, NETCONN_COPY);
                 // printf(sse_buffer);
                 if (error != ERR_OK)
                 {
@@ -566,6 +583,7 @@ static void handle_sse()
                 }
             }
         }
+
         sse_id++;
         vTaskDelay(200);
     }
@@ -609,7 +627,6 @@ int app_main(void)
     settings.on_body = on_body;
     settings.on_message_complete = on_message_complete;
 
-    http_parser_init(&parser, HTTP_REQUEST);
     initialise_wifi();
     gpio_pad_select_gpio(LED_BUILTIN);
     gpio_set_direction(LED_BUILTIN, GPIO_MODE_OUTPUT);

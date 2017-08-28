@@ -7,19 +7,20 @@
 		body { font-family: 'Courier New', Courier, monospace; }
 		#container
 		{
-			position: fixed;
+			position: absolute;
 			top: 50%;
 			left: 50%;
 			transform: translate(-50%, -50%);
-			width: 80%;
-			height: 80%;
+			width: 600px;
+			height: 600px;
 			background: white;
 			border-radius: 10px;
 			display: flex;
 			align-items: center;
 			justify-content: center;
 			flex-direction: column;
-			min-height: 600px;
+			max-height: 100%;
+			max-width: 100%;
 		}
 		#container div
 		{
@@ -64,8 +65,8 @@
 		</div>
 		<div style='height: 7.5%;margin-top: 2.5%;'>
 			<button onclick='sendData()'>AJAX Send</button>
-			<button onclick='recieveData()'>Start Server Side Events</button>
-			<button onclick='toggleInterval()'>Toggle Interval</button>
+			<button onclick='recieveData(this)'>Start Server Side Events</button>
+			<button onclick='toggleInterval(this)'>Toggle Interval</button>
 			<input name='client-data' id='client-data' type='text' style='width:90%' />
 		</div>
 		<div style='height: 3.5%;'> <p id='response'> response </p> </div>
@@ -81,30 +82,37 @@
     var response = document.querySelector('#response');
     var busy_counter = 0;
 
-    function recieveData()
+    function recieveData(obj)
     {
-    	if(source_ap != null)
+    	if(source_ap)
     	{
+    		obj.style.background = "red";
     		response.innerHTML = 'Resetting Event Source';
     		source_ap.close();
     		source_ap = null;
     	}
-    	response.innerHTML = 'Connecting...';
-		source_ap = new EventSource(URL);
-		source_ap.onopen = function()
-		{
-			response.innerHTML = 'Connected';
-		}
-		source_ap.onmessage = function(event)
-		{
-		    console.log(event);
-		    var text_area = document.querySelector('#server-data');
-		    text_area.innerHTML = `id = ${event.lastEventId} :: data = ${event.data}\n` + text_area.innerHTML;
-		};
-		source_ap.onerror = function(event)
-		{
-			response.innerHTML = `failed to connect to ${URL}`;
-		};
+    	else
+    	{
+    		obj.style.background = "limegreen";
+	    	response.innerHTML = 'Connecting...';
+			source_ap = new EventSource(URL);
+			source_ap.onopen = function()
+			{
+				response.innerHTML = 'Connected';
+			};
+			source_ap.onmessage = function(event)
+			{
+			    console.log(event);
+			    var text_area = document.querySelector('#server-data');
+			    text_area.innerHTML = `id = ${event.lastEventId} :: data = ${event.data}\n` + text_area.innerHTML;
+			};
+			source_ap.onerror = function(event)
+			{
+				response.innerHTML = `failed to connect to ${URL}`;
+				source_ap.close();
+				source_ap = null;
+			};
+    	}
     }
     function sendData()
     {
@@ -115,16 +123,19 @@
     }
     var counter = 0;
     var interval;
-    function toggleInterval()
+    function toggleInterval(obj)
     {
-    	console.log(interval);
+    	// console.log(interval);
+    	console.log(obj);
     	if(interval)
     	{
     		clearInterval(interval);
 		    interval = null;
+		    obj.style.background = "red";
     	}
     	else
     	{
+    		obj.style.background = "limegreen";
 		    interval = setInterval(() =>
 		    {
 		    	var oReq = new XMLHttpRequest();
@@ -132,7 +143,7 @@
 		    	console.log(value);
 				oReq.open('GET', `${URL}?data=${value}`);
 				oReq.send();
-		    }, 150);
+		    }, 40);
     	}
     }
 </script>
