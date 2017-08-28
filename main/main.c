@@ -220,6 +220,7 @@ const int CONNECTED_BIT = BIT0;
 struct netconn * clients[MAX_CONNECTIONS] = { NULL };
 char special_string[SPECIAL_STRING_LENGTH] = "special";
 uint32_t sse_connections = 0;
+SemaphoreHandle_t xSemaphore;
 //===============================
 // Function Fields
 //===============================
@@ -312,23 +313,29 @@ bool extract_url_variable(const char * variable,
 bool add_sse_client(struct netconn * conn)
 {
     bool success = false;
-    for (int i = 0; i < MAX_CONNECTIONS; ++i)
+    bool semaphore_taken = false;
+    semaphore_taken = xSemaphoreTake( xSemaphore, ( TickType_t ) 10 );
+    if(semaphore_taken == pdTRUE)
     {
-        if (clients[i] == NULL)
+        for (int i = 0; i < MAX_CONNECTIONS; ++i)
         {
-            //// 75 seconds
-            // conn->so_options |= SOF_KEEPALIVE;
-            // conn->keep_intvl = 75000;
-            clients[i] = conn;
-            printf("Added SSE to Channel (%d)\n", i);
-            success = true;
-            break;
+            if (clients[i] == NULL)
+            {
+                //// 75 seconds
+                // conn->so_options |= SOF_KEEPALIVE;
+                // conn->keep_intvl = 75000;
+                clients[i] = conn;
+                printf("Added SSE to Channel (%d)\n", i);
+                success = true;
+                break;
+            }
         }
     }
-    if (!success)
+    if (!success || semaphore_taken != pdTRUE)
     {
         printf("Refused! SSE Channels full!\n");
     }
+    xSemaphoreGive(xSemaphore);
     return success;
 }
 uint32_t connections = 0;
@@ -364,8 +371,8 @@ static void http_server_netconn_serve(void *pvParameters)
             if (add_sse_client(conn))
             {
                 netconn_write(conn, http_sse_hdr, sizeof(http_sse_hdr) - 1, NETCONN_NOCOPY);
+                close_flag = false;
             }
-            close_flag = false;
         }
         else
         {
@@ -506,7 +513,7 @@ int app_main(void)
 {
     //// Initialize memory
     nvs_flash_init();
-
+    xSemaphore = xSemaphoreCreateMutex();
     initialise_wifi();
     gpio_pad_select_gpio(LED_BUILTIN);
     gpio_set_direction(LED_BUILTIN, GPIO_MODE_OUTPUT);
